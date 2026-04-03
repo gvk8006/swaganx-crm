@@ -7,17 +7,16 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm install
 
-COPY prisma ./prisma/
-RUN npx prisma generate
-
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV DATABASE_URL="postgresql://placeholder"
-RUN npm run build
 
-EXPOSE 3000
+ARG DATABASE_URL
+ENV DATABASE_URL=${DATABASE_URL}
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-ENV NODE_ENV=production
 
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss 2>/dev/null; node prisma/seed.js 2>/dev/null; node .next/standalone/server.js"]
+RUN npx prisma generate
+RUN npm run build
+
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss 2>/dev/null; npm run seed 2>/dev/null; npx next start"]
