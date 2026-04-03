@@ -1,0 +1,217 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  phone         String?
+  address       String?
+  passwordHash  String
+  role          String    @default("user") // user, admin
+  status        String    @default("active") // active, suspended, pending
+  kycStatus     String    @default("pending") // pending, approved, rejected
+  kycDocuments  String?   // JSON array of document URLs
+  balance       Float     @default(0) // CRM wallet balance
+  referralCode  String    @unique
+  referredBy    User?     @relation("Referrals", fields: [referredById], references: [id])
+  referredById  String?   @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      TradingAccount[]
+  deposits      Deposit[]
+  withdrawals   Withdrawal[]
+  transactions  Transaction[]
+  ibCommissions IBCommission[]
+  supportTickets SupportTicket[]
+  bonuses       Bonus[]
+  referrals     User[]    @relation("Referrals")
+}
+
+model TradingAccount {
+  id            String   @id @default(cuid())
+  userId        String
+  login         String   @unique // MT5 account login
+  name          String
+  accountType   String   // real, demo, challenge
+  group         String   // MT5 group
+  currency      String   @default("USD")
+  leverage      Int      @default(100)
+  status        String   @default("active") // active, closed, archived
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+model Deposit {
+  id            String    @id @default(cuid())
+  userId        String
+  amount        Float
+  method        String    // bank_transfer, usdt_trc20, usdt_erc20, btc, eth, credit_card
+  walletAddress String?
+  txHash        String?   // Blockchain transaction hash
+  bankDetails   String?   // JSON bank info
+  accountId     String?   // Trading account to fund
+  status        String    @default("pending") // pending, approved, rejected, completed
+  adminNote     String?
+  mt5Ticket     String?   // MT5 balance operation ticket
+  createdAt     DateTime  @default(now())
+  processedAt   DateTime?
+
+  user          User      @relation(fields: [userId], references: [id])
+}
+
+model Withdrawal {
+  id            String    @id @default(cuid())
+  userId        String
+  amount        Float
+  method        String    // usdt_trc20, usdt_erc20, btc, eth, bank_transfer
+  walletAddress String?
+  bankDetails   String?   // JSON bank info
+  accountId     String?   // Trading account to withdraw from
+  status        String    @default("pending") // pending, approved, rejected, completed
+  adminNote     String?
+  mt5Ticket     String?   // MT5 balance operation ticket
+  createdAt     DateTime  @default(now())
+  processedAt   DateTime?
+
+  user          User      @relation(fields: [userId], references: [id])
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // deposit, withdrawal, transfer, bonus, commission
+  amount      Float
+  balance     Float    // Balance after transaction
+  referenceId String?  // Link to deposit/withdrawal/commission
+  description String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model IBCommission {
+  id         String   @id @default(cuid())
+  userId     String   // IB who earned this
+  referredId String   // User whose trades generated commission
+  accountId  String?  // Trading account
+  lots       Float
+  rate       Float    // Commission per lot
+  amount     Float    // Total commission earned
+  level      String   // Standard, Bronze, Silver, Gold, Platinum
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model SupportTicket {
+  id          String   @id @default(cuid())
+  userId      String
+  subject     String
+  message     String
+  status      String   @default("open") // open, in_progress, resolved, closed
+  priority    String   @default("medium") // low, medium, high
+  adminReply  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model Bonus {
+  id            String   @id @default(cuid())
+  userId        String
+  amount        Float
+  bonusType     String   // deposit_bonus, welcome_bonus, loyalty_bonus, trading_bonus
+  tradingLots   Float?   // Required lots to withdraw bonus
+  completedLots Float?   @default(0)
+  status        String   @default("active") // active, credited, expired, cancelled
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id])
+}
+
+model Employee {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  phone       String?
+  role        String   // admin, manager, support, accountant
+  status      String   @default("active") // active, inactive
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Banner {
+  id          String   @id @default(cuid())
+  title       String
+  image       String?  // URL or file path
+  link        String?
+  position    String   @default("home") // home, dashboard, both
+  order       Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model KYCDocument {
+  id          String   @id @default(cuid())
+  userId      String
+  docType     String   // passport, national_id, driving_license, proof_of_address, selfie
+  docImage    String?  // URL or file path
+  status      String   @default("pending") // pending, approved, rejected
+  adminNote   String?
+  reviewedAt  DateTime?
+  createdAt   DateTime @default(now())
+}
+
+model SystemSettings {
+  key   String @id
+  value String
+}
+
+model ForexCharge {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  type        String  // deposit_fee, withdrawal_fee, spread_markup, commission
+  value       Float
+  valueType   String  @default("percentage") // percentage, fixed
+  method      String? // applies to specific method
+  minAmount   Float?
+  maxAmount   Float?
+  isActive    Boolean @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model AccountType {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  leverage    Int     @default(100)
+  currency    String  @default("USD")
+  spread      Float?
+  commission  Float?
+  minDeposit  Float   @default(0)
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String?
+  title     String
+  message   String
+  type      String   @default("info")
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
